@@ -1,75 +1,89 @@
-from fastapi import FastAPI, HTTPException, status, Depends
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import jwt
-from datetime import datetime, timedelta, timezone
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-"""
-запуск на локальной машине
-python -m uvicorn server:app --reload
-"""
 
 app = FastAPI()
 
-class login_request(BaseModel):
-    login: str
-    password: str
+#пользователь
+class User(BaseModel):
+    id1: int
+    email: str
+    full_name: str
+    role: str
+
+#счет
+class Account(BaseModel):
+    id1: int
+    balance: int
+
+#платеж
+class Payment(BaseModel):
+    id1: int
+    pay: int
+
+'''
+заготовка для подключения к БД
+подключаемся один раз и используем в работе
+'''
+def base_connect():
+    return
+
+'''
+синтетический пользователь пока не подключена БД
+'''
+user1 = User(
+id1 = 123,
+email = '123@gmail.com',
+full_name = 'blenikov',
+role = 'admin')
 
 
-SECRET_KEY = '12345'
-ALGORITHM = 'HS256'
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-security = HTTPBearer()
+@app.get('/')
+async def root():
+    return {
+        'message': 'Главная типа страница'
+        }
 
-
-def create_access_token(data: dict):
-    to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(minutes = ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({'exp':expire})
-
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm = ALGORITHM)
-    return encoded_jwt
-
-def get_user_from_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    try:
-        token = credentials.credentials
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-
-
-    except jwt.PyJWTError:
-        raise HTTPException(
-            status_code = status.HTTP_401_UNAUTHORIZED,
-            detail = "Невалидный токен"
-            )
-
-@app.get("/")
-def root():
-    return {"Message: привет"}
-
-
-@app.post("/login")
-def autorization(data: login_request):
-    if data.login == "user" and data.password == "1234":
-        access_token = create_access_token(data={"sub":data.login})
+'''
++ Получить данные о себе(id, email, full_name) 
++ Получить список своих счетов и балансов 
++ Получить список своих платежей 
+'''
+@app.get('/user/{user_id}')
+async def get_user_info(user_id: int):
+    '''
+    найти пользователя в базе, заполнить сущность user, отдать клиенту
+    '''
+    if user_id == user1.id1:
         return {
-            "access_token":access_token,
-            "token_type": "bearer"
-
+            'message': 'Данные клиента',
+            'user_id': user1.id1,
+            'email': user1.email,
+            'fullname': user1.full_name,
+            'role': user1.role
             }
-    raise HTTPException(
-        status_code = status.HTTP_401_UNAUTHORIZED,
-        detail = "Неверный логин или пароль"
-        )
+    raise HTTPException(status_code = 404, detail = "User not found")
 
-@app.get("/get_user")
-def get_current_user(username: str = Depends(get_user_from_token)):
-    return {"data": "Тут типа данные текущего юзверя"}
+@app.get('/user/{user_id}/accounts')
+async def get_user_accounts(user_id: int):
+    '''
+    найти все счета пользователя, заполнить сущность accounts и отдать клиенту
+    accounts - список объектов класса Account
+    '''
+    return {
+        'message': 'вот типа все счета пользователя'
+        }
 
-@app.get("/accounts")
-def get_all_accounts(username: str = Depends(get_user_from_token)):
-    return {"Тут типа все счета юзверя"}
+@app.get('/user/{user_id}/payments')
+async def get_user_payments(user_id: int):
+    '''
+    найти все платежи пользователя, заполнить сущность Payment и  отдать клиенту
+    payments - список объектов класса Payment
+    '''
+    return {
+        'message': 'вот типа все платежи пользователя'
+        }
 
-@app.get("/transactions")
-def get_all_transactions(username: str = Depends(get_user_from_token)):
-    return {"Тут типа все транзакции"}
 
+
+    

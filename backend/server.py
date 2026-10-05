@@ -1,5 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+import mysql.connector
+import config as conf
 
 
 app = FastAPI()
@@ -23,10 +25,34 @@ class Payment(BaseModel):
 
 '''
 заготовка для подключения к БД
-подключаемся один раз и используем в работе
+принимает запрос, возвращает результат
+в файле config.py прописаны настройки подключения к БД
 '''
-def base_connect():
-    return
+def base_connect_and_get_data(query):
+    res = []
+    connection = None
+    cursor = None
+    try:
+        connection = mysql.connector.connect(
+            host = conf.host,
+            user = conf.user,
+            password = conf.password,
+            database = conf.database
+            )
+        if connection.is_connected():
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute(query)
+            res = cursor.fetchall()
+    except mysql.connector.Error as error:
+        raise HTTPException(status_code = 503, detail = "Service Unavailable")
+    finally:
+        if cursor:
+            cursor.close()
+        if connection and connection.is_connected():
+            connection.close()
+    
+    return res
+
 
 '''
 синтетический пользователь пока не подключена БД
@@ -41,7 +67,7 @@ role = 'admin')
 @app.get('/')
 async def root():
     return {
-        'message': 'Главная типа страница'
+        'message': base_connect_and_get_data("select * from users")
         }
 
 '''

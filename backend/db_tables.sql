@@ -1,12 +1,14 @@
 /*
 создаем таблицы для базы данных, пусть бд называется bankster ))
 */
+
 use bankster;
 create table users (
 id int primary key auto_increment, 
 email varchar(50),
 fullname varchar(50),
-role_ varchar(15)
+role_ varchar(15),
+is_active bool
 );
 
 create table accounts (
@@ -22,3 +24,5 @@ pay int,
 account_id int,
 foreign key(account_id) references accounts(id)
 );
+
+/* drop table accounts, payment, users; */

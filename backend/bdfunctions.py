@@ -7,10 +7,10 @@ from fastapi import HTTPException
 принимает запрос, возвращает результат
 в файле config.py прописаны настройки подключения к БД
 '''
-def base_connect_and_get_data(query):
-    res = []
+def base_connect():
+    #res = []
     connection = None
-    cursor = None
+    #cursor = None
     try:
         connection = mysql.connector.connect(
             host = conf.host,
@@ -18,16 +18,30 @@ def base_connect_and_get_data(query):
             password = conf.password,
             database = conf.database
             )
-        if connection.is_connected():
+
+    except mysql.connector.Error as error:
+        raise HTTPException(status_code = 503, detail = "Service Unavailable")
+
+    return connection
+'''
+функция закрывает подключение(пока не используется, так как подключение разрывается после завершения приложения)
+'''
+def connection_close(connection):
+    connection.close()
+    
+'''
+функция выполняет запрос к БД и возвращает данные
+'''
+def base_get_data(connection, query):
+    res = []
+    if connection.is_connected():
             cursor = connection.cursor(dictionary=True)
             cursor.execute(query)
             res = cursor.fetchall()
-    except mysql.connector.Error as error:
-        raise HTTPException(status_code = 503, detail = "Service Unavailable")
-    finally:
-        if cursor:
-            cursor.close()
-        if connection and connection.is_connected():
-            connection.close()
+    if cursor:
+        cursor.close()
     
     return res
+
+        
+    

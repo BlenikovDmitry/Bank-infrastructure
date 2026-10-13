@@ -25,11 +25,20 @@ class Payment(BaseModel):
 
 
 users_list: list[User] = []
+'''
+создаем подключение и указываем флаг чтобы соединение создавалось только один раз
+'''
+connection = None
+flag = False
+if not flag:
+    connection = bd.base_connect()
+    flag = True
+
 
 @app.get('/')
 async def root():
     return {
-        'message': bd.base_connect_and_get_data("select * from users")
+        'message': '1'
         }
 
 '''
@@ -43,7 +52,8 @@ async def get_user_info(user_id: int):
     '''
     находим пользователя, проводим валидацию, отдаем клиенту
     '''
-    res = bd.base_connect_and_get_data(f"select * from users where id = {user_id}")
+    query = f"select * from users where id = {user_id}"
+    res =  bd.base_get_data(connection, query)
     if not res:
         raise HTTPException(status_code=404, detail="User not found")
     else:

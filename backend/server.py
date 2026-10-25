@@ -135,6 +135,15 @@ async def create_user(user: User_Create):
 
     bd.base_post_data(connection, query, values)
     return { 'result': 'success'}
+
+@app.delete('/user/{user_id}/delete')
+async def delete_user(user_id: int):
+    '''
+    метод находит пользователя по id и удаляет его из БД
+    '''
+    query = 'delete from users where id = %s'
+    bd.delete_user(connection, query, (user_id,))
+    return { 'result': 'success'}
     
 
     

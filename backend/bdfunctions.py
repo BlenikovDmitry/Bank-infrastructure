@@ -50,6 +50,9 @@ def base_post_data(connection, query, values):
     cursor = connection.cursor()
     cursor.execute(query, values)
     connection.commit()
+    cursor.close()
 
-        
+def delete_user(connection, query, values):
+    base_post_data(connection, query, values)
+    
     

@@ -13,6 +13,13 @@ class User(BaseModel):
     role_: str
     is_active: int
 
+#пользователь для записи в БД
+class User_Create(BaseModel):
+    email: str
+    fullname: str
+    role_: str
+    is_active: int
+
 #счет
 class Account(BaseModel):
     id: int
@@ -69,7 +76,6 @@ async def get_user_accounts(user_id: int):
     '''
     найти все счета пользователя, заполнить сущность accounts и отдать клиенту
     accounts - список объектов класса Account
-    но сначала добавь в базу
     '''
     query = f"select * from accounts where user_id = {user_id}"
     res =  bd.base_get_data(connection, query)
@@ -107,7 +113,6 @@ async def get_user_payments(user_id: int):
     '''
     найти все платежи пользователя, заполнить сущность Payment и  отдать клиенту
     payments - список объектов класса Payment
-    но сначала добавь в базу
     '''
     query = f"SELECT p.id AS id, p.pay AS pay, p.account_id FROM payment p JOIN accounts a ON p.account_id = a.id JOIN users u ON a.user_id = u.id WHERE u.id = {user_id}"
     res =  bd.base_get_data(connection, query)
@@ -119,6 +124,17 @@ async def get_user_payments(user_id: int):
             'message': current_user
             }
 
+@app.post('/user/create')
+async def create_user(user: User_Create):
+    '''
+    метод создает пользователя в БД
+    '''
+    user = user.model_dump()
+    query = "INSERT INTO users (email, fullname, role_, is_active) VALUES (%s, %s, %s, %s)"
+    values = (user['email'], user['fullname'], user['role_'], user['is_active'])
 
+    bd.base_post_data(connection, query, values)
+    return { 'result': 'success'}
+    
 
     

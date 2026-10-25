@@ -43,5 +43,13 @@ def base_get_data(connection, query):
     
     return res
 
+'''
+функция выполняет запрос к БД и возвращает данные
+'''
+def base_post_data(connection, query, values):
+    cursor = connection.cursor()
+    cursor.execute(query, values)
+    connection.commit()
+
         
     

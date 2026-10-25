@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import bdfunctions as bd
+from typing import Optional
 
 
 app = FastAPI()
@@ -19,7 +20,14 @@ class User_Create(BaseModel):
     fullname: str
     role_: str
     is_active: int
-
+    
+#пользователь для обновления записи в БД
+class User_Patch(BaseModel):
+    email: Optional[str] = None
+    fullname: Optional[str] = None
+    role_: Optional[str] = None
+    is_active: Optional[int] = None
+    
 #счет
 class Account(BaseModel):
     id: int
@@ -51,6 +59,7 @@ async def root():
         }
 
 '''
+Пользовательская часть
 + Получить данные о себе(id, email, full_name) 
 + Получить список своих счетов и балансов 
 + Получить список своих платежей
@@ -122,8 +131,16 @@ async def get_user_payments(user_id: int):
         current_user = unpack_data_payments(res)
         return {
             'message': current_user
-            }
 
+
+            }
+'''
+Админская часть
++ создать пользователя
++ удалить пользователя
++ обновить пользователя
+- получить список пользователей с их балансами
+'''
 @app.post('/user/create')
 async def create_user(user: User_Create):
     '''
@@ -145,5 +162,15 @@ async def delete_user(user_id: int):
     bd.delete_user(connection, query, (user_id,))
     return { 'result': 'success'}
     
-
+@app.patch('/user/{user_id}/update')
+async def patch_user(user_id: int, patched_user: User_Patch):
+    '''
+    метод находит пользователя по id и обновляет поля
+    '''
+    changes = patched_user.model_dump(exclude_unset = True)
+    set_clause = ", ".join([f"{key} = %s" for key in changes.keys()])
+    query = f"UPDATE users SET {set_clause} WHERE id = %s"
+    values = list(changes.values()) + [user_id]
+    bd.base_post_data(connection, query, values)
+    return { 'result': 'success'}
     

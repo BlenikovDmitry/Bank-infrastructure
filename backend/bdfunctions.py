@@ -51,7 +51,11 @@ def base_post_data(connection, query, values):
     cursor.execute(query, values)
     connection.commit()
     cursor.close()
-
+'''
+функция выполняет запрос к БД и возвращает данные
+используется для удаления пользователя - но в основном коде нельзя использовать
+base_post_data чтобы не возникло путаницы - такой вот пока костыль
+'''
 def delete_user(connection, query, values):
     base_post_data(connection, query, values)
     

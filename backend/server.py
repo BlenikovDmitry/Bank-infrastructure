@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 import bdfunctions as bd
 from typing import Optional
@@ -65,13 +65,26 @@ async def root():
 + Получить список своих платежей
 подумать о кешировании?
 '''
-@app.get('/user/{user_id}')
-async def get_user_info(user_id: int):
+@app.get('/user')
+async def get_user_info(
+    user_id: Optional[int] = Query(None, description = "по ид пользователя"),
+    fullname: Optional[str] = Query(None, description = "по имени пользователя")
+    ):
+
+    if user_id is None and fullname is None:
+        raise HTTPException(status_code = 400, detail = 'нет ни id ни имени пользователя')
+
+    if user_id is not None:
+        query = "select * from users where id = %s"
+        values = (user_id,)
+    else:
+        query = "select * from users where fullname = %s"
+        values = (fullname,)
+        
     '''
     находим пользователя, проводим валидацию, отдаем клиенту
     '''
-    query = f"select * from users where id = {user_id}"
-    res =  bd.base_get_data(connection, query)
+    res =  bd.base_get_data_save(connection, query, values)
     if not res:
         raise HTTPException(status_code=404, detail="User not found")
     else:
@@ -80,14 +93,20 @@ async def get_user_info(user_id: int):
             'message': current_user
             }
 
-@app.get('/user/{user_id}/accounts')
-async def get_user_accounts(user_id: int):
+@app.get('/user/accounts')
+async def get_user_accounts(
+    user_id: Optional[int] = Query(None, description = "по ид пользователя")
+    ):
+
+    if user_id is None:
+        raise HTTPException(status_code = 400, detail = 'нет ни id пользователя')
     '''
     найти все счета пользователя, заполнить сущность accounts и отдать клиенту
     accounts - список объектов класса Account
     '''
-    query = f"select * from accounts where user_id = {user_id}"
-    res =  bd.base_get_data(connection, query)
+    query = "select * from accounts where user_id = %s"
+    values = (user_id,)
+    res =  bd.base_get_data_save(connection, query, values)
     if not res:
         raise HTTPException(status_code=404, detail="Accounts not found")
     else:
@@ -117,14 +136,20 @@ def unpack_data_accounts(data):
         
     
     
-@app.get('/user/{user_id}/payments')
-async def get_user_payments(user_id: int):
+@app.get('/user/payments')
+async def get_user_payments(
+    user_id: Optional[int] = Query(None, description = "по ид пользователя")
+    ):
+
+    if user_id is None:
+        raise HTTPException(status_code = 400, detail = 'нет ни id пользователя')
     '''
     найти все платежи пользователя, заполнить сущность Payment и  отдать клиенту
     payments - список объектов класса Payment
     '''
-    query = f"SELECT p.id AS id, p.pay AS pay, p.account_id FROM payment p JOIN accounts a ON p.account_id = a.id JOIN users u ON a.user_id = u.id WHERE u.id = {user_id}"
-    res =  bd.base_get_data(connection, query)
+    query = "SELECT p.id AS id, p.pay AS pay, p.account_id FROM payment p JOIN accounts a ON p.account_id = a.id JOIN users u ON a.user_id = u.id WHERE u.id = %s"
+    values = (user_id,)
+    res =  bd.base_get_data_save(connection, query, values)
     if not res:
         raise HTTPException(status_code=404, detail="Payments not found")
     else:
@@ -139,7 +164,7 @@ async def get_user_payments(user_id: int):
 + создать пользователя
 + удалить пользователя
 + обновить пользователя
-- получить список пользователей с их балансами
+- получить список пользователей с их балансамиЧ
 '''
 @app.post('/user/create')
 async def create_user(user: User_Create):
@@ -153,8 +178,12 @@ async def create_user(user: User_Create):
     bd.base_post_data(connection, query, values)
     return { 'result': 'success'}
 
-@app.delete('/user/{user_id}/delete')
-async def delete_user(user_id: int):
+@app.delete('/user/delete')
+async def delete_user(
+    user_id: Optional[int] = Query(None, description = "по ид пользователя")
+    ):
+    if user_id is None:
+        raise HTTPException(status_code = 400, detail = 'нет id пользователя')
     '''
     метод находит пользователя по id и удаляет его из БД
     '''
@@ -162,8 +191,13 @@ async def delete_user(user_id: int):
     bd.delete_user(connection, query, (user_id,))
     return { 'result': 'success'}
     
-@app.patch('/user/{user_id}/update')
-async def patch_user(user_id: int, patched_user: User_Patch):
+@app.patch('/user/update')
+async def patch_user(
+    patched_user: User_Patch,
+    user_id: Optional[int] = Query(None, description = "по ид пользователя")
+    ):
+    if user_id is None:
+        raise HTTPException(status_code = 400, detail = 'нет id пользователя')
     '''
     метод находит пользователя по id и обновляет поля
     '''

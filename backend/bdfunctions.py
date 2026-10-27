@@ -29,14 +29,15 @@ def base_connect():
 def connection_close(connection):
     connection.close()
     
+
 '''
 функция выполняет запрос к БД и возвращает данные
 '''
-def base_get_data(connection, query):
+def base_get_data_save(connection, query, values):
     res = []
     if connection.is_connected():
             cursor = connection.cursor(dictionary=True)
-            cursor.execute(query)
+            cursor.execute(query, values)
             res = cursor.fetchall()
     if cursor:
         cursor.close()

@@ -75,10 +75,10 @@ async def get_user_info(
         raise HTTPException(status_code = 400, detail = 'нет ни id ни имени пользователя')
 
     if user_id is not None:
-        query = "select * from users where id = %s"
+        query = "select * from users where id = %s and is_active = 1"
         values = (user_id,)
     else:
-        query = "select * from users where fullname = %s"
+        query = "select * from users where fullname = %s and is_active = 1"
         values = (fullname,)
         
     '''
@@ -164,7 +164,7 @@ async def get_user_payments(
 + создать пользователя
 + удалить пользователя
 + обновить пользователя
-- получить список пользователей с их балансамиЧ
+- получить список пользователей с их балансами
 '''
 @app.post('/user/create')
 async def create_user(user: User_Create):
@@ -180,15 +180,25 @@ async def create_user(user: User_Create):
 
 @app.delete('/user/delete')
 async def delete_user(
-    user_id: Optional[int] = Query(None, description = "по ид пользователя")
+    user_id: Optional[int] = Query(None, description = "по ид пользователя"),
+    fullname: Optional[str] = Query(None, description = "по имени пользователя")
     ):
-    if user_id is None:
-        raise HTTPException(status_code = 400, detail = 'нет id пользователя')
+
+    if user_id is None and fullname is None:
+        raise HTTPException(status_code = 400, detail = 'нет ни id ни имени пользователя')
+
+    # Меняем логику с DELETE на UPDATE
+    if user_id is not None:
+        query = "UPDATE users SET is_active = %s WHERE id = %s"
+        values = (0, user_id)
+    else:
+        query = "UPDATE users SET is_active = %s WHERE fullname = %s"
+        values = (0, fullname)
     '''
     метод находит пользователя по id и удаляет его из БД
+    
     '''
-    query = 'delete from users where id = %s'
-    bd.delete_user(connection, query, (user_id,))
+    bd.delete_user(connection, query, values)
     return { 'result': 'success'}
     
 @app.patch('/user/update')

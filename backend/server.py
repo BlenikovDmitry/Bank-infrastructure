@@ -166,7 +166,7 @@ async def get_user_payments(
 + обновить пользователя
 - получить список пользователей с их балансами
 '''
-@app.post('/user/create')
+@app.post('/admin/user/create')
 async def create_user(user: User_Create):
     '''
     метод создает пользователя в БД
@@ -178,11 +178,15 @@ async def create_user(user: User_Create):
     bd.base_post_data(connection, query, values)
     return { 'result': 'success'}
 
-@app.delete('/user/delete')
+@app.delete('/admin/user/delete')
 async def delete_user(
     user_id: Optional[int] = Query(None, description = "по ид пользователя"),
     fullname: Optional[str] = Query(None, description = "по имени пользователя")
     ):
+    '''
+    метод переводит пользователя из состояния is_active = 1 в состояние is_active = 0
+    такой метод нужен для того, чтобы вести архивные данные
+    '''
 
     if user_id is None and fullname is None:
         raise HTTPException(status_code = 400, detail = 'нет ни id ни имени пользователя')
@@ -196,16 +200,18 @@ async def delete_user(
         values = (0, fullname)
     '''
     метод находит пользователя по id и удаляет его из БД
-    
     '''
     bd.delete_user(connection, query, values)
     return { 'result': 'success'}
     
-@app.patch('/user/update')
+@app.patch('/admin/user/update')
 async def patch_user(
     patched_user: User_Patch,
     user_id: Optional[int] = Query(None, description = "по ид пользователя")
     ):
+    '''
+    метод изменяет уже созданного пользователя 
+    '''
     if user_id is None:
         raise HTTPException(status_code = 400, detail = 'нет id пользователя')
     '''
@@ -217,4 +223,18 @@ async def patch_user(
     values = list(changes.values()) + [user_id]
     bd.base_post_data(connection, query, values)
     return { 'result': 'success'}
-    
+
+@app.get('/admin/user/get/users')
+async def get_all_users():
+    '''
+    метод выводит список всех пользователей и их балансов
+    '''
+    query = "select u.id, u.fullname, u.email, a.balance from users u left join accounts a on a.user_id = u.id where u.is_active != 0"
+    res =  bd.base_get_data_save(connection, query)
+    if not res:
+        raise HTTPException(status_code=404, detail="Payments not found")
+    else:
+        return {
+            'message': res
+
+            }

@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 import bdfunctions as bd
 from typing import Optional
+import config as conf
 
 
 app = FastAPI()
@@ -164,7 +165,7 @@ async def get_user_payments(
 + создать пользователя
 + удалить пользователя
 + обновить пользователя
-- получить список пользователей с их балансами
++ получить список пользователей с их балансами
 '''
 @app.post('/admin/user/create')
 async def create_user(user: User_Create):
@@ -174,9 +175,12 @@ async def create_user(user: User_Create):
     user = user.model_dump()
     query = "INSERT INTO users (email, fullname, role_, is_active) VALUES (%s, %s, %s, %s)"
     values = (user['email'], user['fullname'], user['role_'], user['is_active'])
-
-    bd.base_post_data(connection, query, values)
-    return { 'result': 'success'}
+    if user['role_'] in conf.user_roles:
+        bd.base_post_data(connection, query, values)
+        return { 'result': 'success'}
+    else:
+        raise HTTPException(status_code=400, detail="Invalid user role")
+        
 
 @app.delete('/admin/user/delete')
 async def delete_user(

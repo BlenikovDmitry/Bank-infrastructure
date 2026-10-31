@@ -25,4 +25,8 @@ account_id int,
 foreign key(account_id) references accounts(id)
 );
 
+/* 31.10.2026 */
+/* в процессе теста нашел косяк с созданием пользователя - нужно поля email и fullname сделать уникальными*/
+alter table users add unique(fullname);
+alter table users add unique(email);
 /* drop table accounts, payment, users; */

@@ -1,11 +1,93 @@
 from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel
 import bdfunctions as bd
 from typing import Optional
 import config as conf
+from datetime import datetime, timedelta, timezone
+from typing import Annotated, List
+import jwt
+from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from pydantic import BaseModel
+
 
 
 app = FastAPI()
+"""
+//////////////////////////////////////////////////////////////////////
+блок авторизации
+честно написала нейронка, я только проверял
+"""
+secret_key = '1234'
+algo = 'HS256'
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="user/login")
+
+class UserResponse(BaseModel):
+    username: str
+    role: str
+
+# Имитируем базу данных с ролями
+# не забудь написать метод получения списка пользователей из бд или поиск из формы
+# а также хранить пароль в зашифрованном виде
+FAKE_USERS_DB = {
+    "admin": {"username": "admin", "password": "password", "role": "admin"},
+    "user1": {"username": "user1", "password": "password123", "role": "user"}
+}
+
+
+@app.post('/user/login')
+async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
+    user = FAKE_USERS_DB.get(form_data.username)
+    if not user or form_data.password != user["password"]:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Неверный логин или пароль",
+        )
+    
+    expire = datetime.now(timezone.utc) + timedelta(minutes=30)
+    
+    # ВАЖНО: Добавляем роль ("role") прямо в payload токена!
+    payload = {
+        "sub": user["username"], 
+        "role": user["role"], 
+        "exp": expire
+    }
+    token = jwt.encode(payload, secret_key, algorithm=algo)
+
+    return {"access_token": token, "token_type": "bearer"}
+
+# Измененная базовая проверка: теперь она возвращает Pydantic-модель с ролью
+async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> UserResponse:
+    try:
+        payload = jwt.decode(token, secret_key, algorithms=[algo])
+        username: str = payload.get("sub")
+        role: str = payload.get("role")  # Достаем роль из JWT
+        
+        if username is None or role is None:
+            raise HTTPException(status_code=401, detail="Невалидный токен")
+            
+        return UserResponse(username=username, role=role)
+        
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Токен истек или невалиден")
+
+# КЛАСС-ЗАВИСИМОСТЬ ДЛЯ ПРОВЕРКИ РОЛЕЙ
+class RoleChecker:
+    def __init__(self, allowed_roles: List[str]):
+        self.allowed_roles = allowed_roles
+
+    def __call__(self, current_user: Annotated[UserResponse, Depends(get_current_user)]):
+        if current_user.role not in self.allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="У вас недостаточно прав для выполнения этой операции"
+            )
+        return current_user
+
+
+"""
+конец блока авторизиции
+/////////////////////////////////////////////////////////////////////
+"""
 
 #пользователь
 class User(BaseModel):
@@ -64,10 +146,10 @@ async def root():
 + Получить данные о себе(id, email, full_name) 
 + Получить список своих счетов и балансов 
 + Получить список своих платежей
-подумать о кешировании?
 '''
 @app.get('/user')
 async def get_user_info(
+    user_access: Annotated[UserResponse, Depends(RoleChecker(["admin", "user"]))],
     user_id: Optional[int] = Query(None, description = "по ид пользователя"),
     fullname: Optional[str] = Query(None, description = "по имени пользователя")
     ):
@@ -96,6 +178,7 @@ async def get_user_info(
 
 @app.get('/user/accounts')
 async def get_user_accounts(
+    user_access: Annotated[UserResponse, Depends(RoleChecker(["admin", "user"]))],
     user_id: Optional[int] = Query(None, description = "по ид пользователя")
     ):
 
@@ -139,6 +222,7 @@ def unpack_data_accounts(data):
     
 @app.get('/user/payments')
 async def get_user_payments(
+    user_access: Annotated[UserResponse, Depends(RoleChecker(["admin", "user"]))],
     user_id: Optional[int] = Query(None, description = "по ид пользователя")
     ):
 
@@ -168,7 +252,7 @@ async def get_user_payments(
 + получить список пользователей с их балансами
 '''
 @app.post('/admin/user/create')
-async def create_user(user: User_Create):
+async def create_user(user: User_Create, user_access: Annotated[UserResponse, Depends(RoleChecker(["admin"]))]):
     '''
     метод создает пользователя в БД
     '''
@@ -184,8 +268,9 @@ async def create_user(user: User_Create):
 
 @app.delete('/admin/user/delete')
 async def delete_user(
+    user_access: Annotated[UserResponse, Depends(RoleChecker(["admin"]))],
     user_id: Optional[int] = Query(None, description = "по ид пользователя"),
-    fullname: Optional[str] = Query(None, description = "по имени пользователя")
+    fullname: Optional[str] = Query(None, description = "по имени пользователя"),
     ):
     '''
     метод переводит пользователя из состояния is_active = 1 в состояние is_active = 0
@@ -210,6 +295,7 @@ async def delete_user(
     
 @app.patch('/admin/user/update')
 async def patch_user(
+    user_access: Annotated[UserResponse, Depends(RoleChecker(["admin"]))],
     patched_user: User_Patch,
     user_id: Optional[int] = Query(None, description = "по ид пользователя")
     ):
@@ -229,7 +315,7 @@ async def patch_user(
     return { 'result': 'success'}
 
 @app.get('/admin/user/get/users')
-async def get_all_users():
+async def get_all_users(user_access: Annotated[UserResponse, Depends(RoleChecker(["admin"]))]):
     '''
     метод выводит список всех пользователей и их балансов
     '''

@@ -29,8 +29,8 @@ class UserResponse(BaseModel):
 # не забудь написать метод получения списка пользователей из бд или поиск из формы
 # а также хранить пароль в зашифрованном виде
 FAKE_USERS_DB = {
-    "admin": {"username": "admin", "password": "password", "role": "admin"},
-    "user1": {"username": "user1", "password": "password123", "role": "user"}
+    "admin": {"id": 1488,"username": "admin", "password": "password", "role": "admin"},
+    "user1": {"id": 1489,"username": "user1", "password": "password123", "role": "user"}
 }
 
 
@@ -47,7 +47,7 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
     
     # ВАЖНО: Добавляем роль ("role") прямо в payload токена!
     payload = {
-        "sub": user["username"], 
+        "sub": user["username"],
         "role": user["role"], 
         "exp": expire
     }
@@ -157,6 +157,7 @@ async def get_user_info(
     if user_id is None and fullname is None:
         raise HTTPException(status_code = 400, detail = 'нет ни id ни имени пользователя')
 
+    
     if user_id is not None:
         query = "select * from users where id = %s and is_active = 1"
         values = (user_id,)
@@ -166,12 +167,16 @@ async def get_user_info(
         
     '''
     находим пользователя, проводим валидацию, отдаем клиенту
+    проверяем что пользователь видит только себя
     '''
     res =  bd.base_get_data_save(connection, query, values)
     if not res:
         raise HTTPException(status_code=404, detail="User not found")
     else:
         current_user = User(**res[0])
+        #если в классе авторизации имя не совпадает с полученным из БД - выдаем ошибку пользователю независимо от роли(для админа есть свои ендпоинты)
+        if user_access.username is not None and current_user.fullname != user_access.username:
+            raise HTTPException(status_code=403, detail="Вы можете запросить только себя")
         return {
             'message': current_user
             }
@@ -270,7 +275,7 @@ async def create_user(user: User_Create, user_access: Annotated[UserResponse, De
 async def delete_user(
     user_access: Annotated[UserResponse, Depends(RoleChecker(["admin"]))],
     user_id: Optional[int] = Query(None, description = "по ид пользователя"),
-    fullname: Optional[str] = Query(None, description = "по имени пользователя"),
+    fullname: Optional[str] = Query(None, description = "по имени пользователя")
     ):
     '''
     метод переводит пользователя из состояния is_active = 1 в состояние is_active = 0
@@ -297,20 +302,31 @@ async def delete_user(
 async def patch_user(
     user_access: Annotated[UserResponse, Depends(RoleChecker(["admin"]))],
     patched_user: User_Patch,
-    user_id: Optional[int] = Query(None, description = "по ид пользователя")
+    user_id: Optional[int] = Query(None, description = "по ид пользователя"),
+    fullname: Optional[str] = Query(None, description = "по имени пользователя")
     ):
     '''
-    метод изменяет уже созданного пользователя 
+    метод изменяет уже созданного пользователя
     '''
-    if user_id is None:
-        raise HTTPException(status_code = 400, detail = 'нет id пользователя')
     '''
-    метод находит пользователя по id и обновляет поля
+    проверяем, введены ли имя пользователя или id пользователя и проверяем, верно ли введена роль
+    '''
+    if user_id is None and fullname is None:
+        raise HTTPException(status_code = 400, detail = 'нет ни id ни имени пользователя')
+    if patched_user.role_ not in conf.user_roles:
+        raise HTTPException(status_code=400, detail="Invalid user role")
+    '''
+    метод находит пользователя по id или по имени пользователя и обновляет поля
     '''
     changes = patched_user.model_dump(exclude_unset = True)
     set_clause = ", ".join([f"{key} = %s" for key in changes.keys()])
-    query = f"UPDATE users SET {set_clause} WHERE id = %s"
-    values = list(changes.values()) + [user_id]
+    if user_id is not None:
+        query = f"UPDATE users SET {set_clause} WHERE id = %s"
+        values = list(changes.values()) + [user_id]
+    if fullname is not None:
+        query = f"UPDATE users SET {set_clause} WHERE fullname = %s"
+        values = list(changes.values()) + [fullname]
+        
     bd.base_post_data(connection, query, values)
     return { 'result': 'success'}
 

@@ -15,29 +15,35 @@ app = FastAPI()
 """
 //////////////////////////////////////////////////////////////////////
 блок авторизации
-честно написала нейронка, я только проверял
+честно написала нейронка, я только проверял и добавил код дергающий пользователя из базы
+!!! дописать кодирование/ декодирование пароля
 """
 secret_key = '1234'
 algo = 'HS256'
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="user/login")
-
+#модель для проверки полномочий пользователя
 class UserResponse(BaseModel):
     username: str
     role: str
 
-# Имитируем базу данных с ролями
-# не забудь написать метод получения списка пользователей из бд или поиск из формы
-# а также хранить пароль в зашифрованном виде
-FAKE_USERS_DB = {
-    "admin": {"id": 1488,"username": "admin", "password": "password", "role": "admin"},
-    "user1": {"id": 1489,"username": "user1", "password": "password123", "role": "user"}
-}
-
-
+#модель для логина пользователя
+class UserLogin(BaseModel):
+    login: str
+    password: str
+    role: str
+    
 @app.post('/user/login')
 async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
-    user = FAKE_USERS_DB.get(form_data.username)
-    if not user or form_data.password != user["password"]:
+    
+    query = "select login, password, role from servants where login = %s"
+    values = (form_data.username,)
+    res =  bd.base_get_data_save(connection, query, values)
+    if not res:
+        raise HTTPException(status_code=404, detail="User not found")
+    else:
+        user = UserLogin(**res[0])
+    
+    if not user or form_data.password != user.password:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Неверный логин или пароль",
@@ -47,8 +53,8 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
     
     # ВАЖНО: Добавляем роль ("role") прямо в payload токена!
     payload = {
-        "sub": user["username"],
-        "role": user["role"], 
+        "sub": user.login,
+        "role": user.role, 
         "exp": expire
     }
     token = jwt.encode(payload, secret_key, algorithm=algo)
@@ -89,7 +95,7 @@ class RoleChecker:
 /////////////////////////////////////////////////////////////////////
 """
 
-#пользователь
+#пользователь - клиент
 class User(BaseModel):
     id: int
     email: str
@@ -175,7 +181,7 @@ async def get_user_info(
     else:
         current_user = User(**res[0])
         #если в классе авторизации имя не совпадает с полученным из БД - выдаем ошибку пользователю независимо от роли(для админа есть свои ендпоинты)
-        if user_access.username is not None and current_user.fullname != user_access.username:
+        if user_access.username is not None and current_user.fullname != user_access.username and user_access.role != 'admin':
             raise HTTPException(status_code=403, detail="Вы можете запросить только себя")
         return {
             'message': current_user

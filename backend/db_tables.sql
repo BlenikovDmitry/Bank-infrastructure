@@ -29,4 +29,12 @@ foreign key(account_id) references accounts(id)
 /* в процессе теста нашел косяк с созданием пользователя - нужно поля email и fullname сделать уникальными*/
 alter table users add unique(fullname);
 alter table users add unique(email);
-/* drop table accounts, payment, users; */
+
+/* 12.11.2026 */
+/* создал таблицу servants для пользователей, обслуживающих сервис */
+create table servants (
+id int primary key auto_increment,
+login varchar(30),
+password varchar(30),
+role varchar(10)
+);

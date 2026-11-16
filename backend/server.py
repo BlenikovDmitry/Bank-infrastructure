@@ -8,6 +8,8 @@ import jwt
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
+import hashlib
+import hmac
 
 
 
@@ -350,3 +352,45 @@ async def get_all_users(user_access: Annotated[UserResponse, Depends(RoleChecker
             'message': res
 
             }
+
+'''
+пример транзакции
+"transaction_id": "5eae174f-7cd0-472c-bd36-35660f00132b", 
+"user_id": 1, 
+"account_id": 1, 
+"amount": 100, 
+"signature": 
+"7b47e41efe564a062029da3367bde8844bea0fb049f894687cee5d57f2858bc8"
+'''
+'''
+нужно написать проверку подписи +
+запись в бд
+пересчет баланса
+'''
+
+#модель для валидации запроса с вебхука
+class webhookpayment(BaseModel):
+    transaction_id: str
+    user_id: int
+    account_id: int
+    amount: int
+    signature: str  
+
+def check_signature(payment: webhookpayment, secret: str) -> bool:
+    # Алфавитный порядок ключей: account_id, amount, transaction_id, user_id + secret_key
+    raw_str = f"{payment.account_id}{payment.amount}{payment.transaction_id}{payment.user_id}{secret}"
+    expected_sig = hashlib.sha256(raw_str.encode("utf-8")).hexdigest()
+    
+    return hmac.compare_digest(expected_sig, payment.signature)
+
+'''
+точка для вебхука
+'''
+@app.post('/webhook/getpayment')
+async def get_payment(payment: webhookpayment):
+    if not check_signature(payment, secret_key):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid signature"
+        )
+    return {"result": "success"}

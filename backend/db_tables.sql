@@ -19,9 +19,10 @@ foreign key(user_id) references users(id)
 );
 
 create table payment (
-id int primary key auto_increment,
-pay int,
+transaction_id varchar(100) primary key,
+user_id int,
 account_id int,
+amount int,
 foreign key(account_id) references accounts(id)
 );
 

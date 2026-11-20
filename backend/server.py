@@ -362,12 +362,6 @@ async def get_all_users(user_access: Annotated[UserResponse, Depends(RoleChecker
 "signature": 
 "7b47e41efe564a062029da3367bde8844bea0fb049f894687cee5d57f2858bc8"
 '''
-'''
-нужно написать проверку подписи +
-запись в бд
-пересчет баланса
-'''
-
 #модель для валидации запроса с вебхука
 class webhookpayment(BaseModel):
     transaction_id: str
@@ -385,6 +379,9 @@ def check_signature(payment: webhookpayment, secret: str) -> bool:
 
 '''
 точка для вебхука
+получаем данные от вебхука
+пишем в базу данных транзакцию
+обновляем баланс
 '''
 @app.post('/webhook/getpayment')
 async def get_payment(payment: webhookpayment):
@@ -393,4 +390,13 @@ async def get_payment(payment: webhookpayment):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid signature"
         )
+    query = "INSERT INTO payment (transaction_id, user_id, account_id, amount) VALUES (%s, %s, %s, %s)"
+    values = (payment.transaction_id, payment.user_id, payment.account_id, payment.amount)
+    bd.base_post_data(connection, query, values)
+
+    query = "UPDATE accounts SET balance = balance + %s WHERE user_id = %s AND id = %s"
+    values = (payment.amount, payment.user_id, payment.account_id)
+    bd.base_post_data(connection, query, values)
+    
+    
     return {"result": "success"}
